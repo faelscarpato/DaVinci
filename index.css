@@ -1,0 +1,238 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #f4f1ea;
+  --ink: #2b261e;
+  --sepia: #a68f6a;
+  --shadow: rgba(30,27,22,.15);
+  --accent-davinci: #8b5a2b;
+  
+  /* Fusion Mode Variables */
+  --fusion-bg: #0f1218;
+  --fusion-gold: #c5a059;
+  --fusion-text: #e2e8f0;
+  --fusion-accent: #3b82f6;
+
+  /* Cyberpunk / Leo.js Mode Variables */
+  --neon-blue: #00f3ff;
+  --neon-pink: #ff00ff;
+  --neon-green: #00ff00;
+}
+
+/* Default Dark Mode (App Mode) */
+body {
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ------------------------------------------------------------------
+   DA VINCI MODE STYLES
+   ------------------------------------------------------------------ */
+.davinci-mode {
+  background-color: var(--paper) !important;
+  color: var(--ink) !important;
+  font-family: 'Libre Baskerville', serif !important;
+}
+
+/* Paper Texture Overlay - FIXED OVERLAY */
+.davinci-mode::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  /* SVG Noise Pattern for Grain */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.4'/%3E%3C/svg%3E");
+  opacity: 0.35;
+  pointer-events: none; /* Crucial: Allows clicking through the texture */
+  z-index: 50; /* Above most elements to act as a texture */
+  mix-blend-mode: multiply;
+}
+
+/* Icon Sketch Style - Refined for "Traço Fino" */
+.davinci-mode .icon-sketch {
+  stroke-width: 1px !important;
+  stroke: var(--ink) !important;
+  fill: none !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0.5px 0.5px 0px rgba(166,143,106,0.3));
+  opacity: 0.85;
+}
+
+/* Typography Overrides */
+.davinci-mode h1, 
+.davinci-mode h2, 
+.davinci-mode h3, 
+.davinci-mode h4,
+.davinci-mode .davinci-title {
+  font-family: 'Cinzel', serif !important;
+  color: var(--ink) !important;
+  letter-spacing: 0.02em;
+}
+
+/* Component Overrides in Da Vinci Mode */
+.davinci-mode .bg-zinc-950 {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.davinci-mode .bg-dot-grid {
+  background-image: radial-gradient(circle, var(--sepia) 1px, transparent 1px) !important;
+}
+
+/* Inputs and Cards */
+.davinci-mode .davinci-card {
+  background: rgba(244, 241, 234, 0.6) !important;
+  border: 1px solid var(--sepia) !important;
+  box-shadow: 4px 4px 0px var(--shadow) !important;
+  backdrop-filter: blur(4px);
+}
+
+.davinci-mode .text-zinc-400,
+.davinci-mode .text-zinc-500,
+.davinci-mode .text-zinc-600 {
+  color: #5c554b !important;
+}
+
+.davinci-mode .text-zinc-100,
+.davinci-mode .text-white {
+  color: var(--ink) !important;
+}
+
+.davinci-mode .border-zinc-700,
+.davinci-mode .border-zinc-800 {
+  border-color: rgba(166, 143, 106, 0.4) !important;
+}
+
+/* ------------------------------------------------------------------
+   FUSION MODE STYLES (Renascimento Digital)
+   ------------------------------------------------------------------ */
+.fusion-mode {
+  background-color: var(--fusion-bg) !important;
+  color: var(--fusion-text) !important;
+  font-family: 'Cinzel', serif !important;
+}
+
+.fusion-mode::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.08), transparent 100%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.fusion-mode .text-zinc-100, .fusion-mode .text-white {
+    color: var(--fusion-gold) !important;
+}
+
+.fusion-mode .icon-sketch {
+    stroke: var(--fusion-gold) !important;
+}
+
+.fusion-mode .bg-dot-grid {
+  background-image: radial-gradient(circle, var(--fusion-gold) 1px, transparent 1px) !important;
+}
+
+
+.bg-dot-grid {
+  position: relative;
+  overflow: hidden;
+}
+
+.bg-dot-grid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--fusion-gold) 1px, transparent 1px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-dot-grid > * {
+  position: relative;
+  z-index: 1;                  
+}
+
+/* Scrollbars */
+.davinci-mode ::-webkit-scrollbar-thumb {
+  background-color: var(--sepia) !important;
+  border-radius: 4px;
+}
+.davinci-mode ::-webkit-scrollbar-track {
+  background-color: rgba(0,0,0,0.05) !important;
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes spin-reverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+.animate-spin-reverse {
+    animation: spin-reverse 3s linear infinite;
+}
+
+/* Landing Page Animations */
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.8s ease-out forwards;
+}
+.animate-fade-in-up {
+    animation: fade-in-up 0.8s ease-out forwards;
+}
+
+/* ------------------------------------------------------------------
+   VISUAL EFFECTS UTILITIES
+   ------------------------------------------------------------------ */
+
+/* Sketch Drawing Animation */
+@keyframes sketch-draw {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+.animate-sketch-draw {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: sketch-draw 5s linear forwards;
+}
+
+/* Glitch Text Effect */
+@keyframes glitch-skew {
+  0% { transform: skew(0deg); }
+  20% { transform: skew(-10deg); }
+  40% { transform: skew(10deg); }
+  60% { transform: skew(-5deg); }
+  80% { transform: skew(5deg); }
+  100% { transform: skew(0deg); }
+}
+
+.hover-glitch:hover {
+  animation: glitch-skew 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+  color: var(--neon-blue);
+  text-shadow: 2px 0 var(--neon-pink), -2px 0 var(--neon-green);
+}
+
+.font-cyber {
+  font-family: 'JetBrains Mono', monospace;
+}
