@@ -188,29 +188,38 @@ const PdfRenderer = ({ dataUrl }: { dataUrl: string }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+ // Em components/LivePreview.tsx
+
+// ... dentro de PdfRenderer ...
+
   useEffect(() => {
+    let isMounted = true; // Flag para evitar atualizações se o componente desmontar
+
     const renderPdf = async () => {
-      if (!window.pdfjsLib) {
-        setError("Biblioteca PDF não inicializada");
-        setLoading(false);
+      // Verificação de segurança extra
+      if (typeof window === 'undefined' || !window.pdfjsLib) {
+        if(isMounted) {
+            setError("Biblioteca PDF ainda não carregada.");
+            setLoading(false);
+        }
         return;
       }
 
       try {
-        setLoading(true);
-        // Load the document
+        if(isMounted) setLoading(true);
+        
         const loadingTask = window.pdfjsLib.getDocument(dataUrl);
         const pdf = await loadingTask.promise;
         
-        // Get the first page
         const page = await pdf.getPage(1);
         
+        // Verificação se o canvas ainda existe
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        if (!canvas || !isMounted) return;
 
         const context = canvas.getContext('2d');
+        if (!context) throw new Error("Contexto 2D não encontrado");
         
-        // Calculate scale to make it look good (High DPI)
         const viewport = page.getViewport({ scale: 2.0 });
 
         canvas.height = viewport.height;
@@ -222,15 +231,26 @@ const PdfRenderer = ({ dataUrl }: { dataUrl: string }) => {
         };
 
         await page.render(renderContext).promise;
-        setLoading(false);
+        
+        if(isMounted) setLoading(false);
       } catch (err) {
         console.error("Error rendering PDF:", err);
-        setError("Não foi possível renderizar o PDF.");
-        setLoading(false);
+        if(isMounted) {
+            setError("Visualização de PDF indisponível no momento.");
+            setLoading(false);
+        }
       }
     };
 
-    renderPdf();
+    // Pequeno delay para garantir que scripts externos carregaram
+    const timer = setTimeout(() => {
+        renderPdf();
+    }, 500);
+
+    return () => {
+        isMounted = false;
+        clearTimeout(timer);
+    };
   }, [dataUrl]);
 
   if (error) {
