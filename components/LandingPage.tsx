@@ -1,13 +1,12 @@
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useState, useEffect, useRef } from 'react';
-import { SparklesIcon, CodeBracketIcon, PaintBrushIcon, BoltIcon, ArrowRightIcon, PaperClipIcon, XMarkIcon, DocumentIcon, PhotoIcon, QuestionMarkCircleIcon, LightBulbIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, CodeBracketIcon, PaintBrushIcon, BoltIcon, ArrowRightIcon, PaperClipIcon, XMarkIcon, DocumentIcon, PhotoIcon, QuestionMarkCircleIcon, LightBulbIcon, KeyIcon } from '@heroicons/react/24/outline';
 
 interface LandingPageProps {
-  onStart: (prompt: string, mode: 'app' | 'davinci' | 'fusion', file?: File) => void;
+  onStart: (prompt: string, mode: 'app' | 'davinci' | 'fusion', file: File | undefined, apiKey: string) => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
@@ -17,9 +16,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
   const [showTutorial, setShowTutorial] = useState(true);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState(0); 
+  const [apiKey, setApiKey] = useState('');
+  const [showKeyInput, setShowKeyInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Check local storage for API Key
+    const savedKey = localStorage.getItem('gemini_user_api_key');
+    if (savedKey) {
+        setApiKey(savedKey);
+    } else {
+        setShowKeyInput(true); // Show input if no key found
+    }
+
     // Immersive Entrance
     const timer1 = setTimeout(() => setLoading(false), 2000); 
     const timer2 = setTimeout(() => setStage(1), 4000); 
@@ -33,16 +42,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
       setShowTutorial(false);
   };
 
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newKey = e.target.value;
+      setApiKey(newKey);
+      localStorage.setItem('gemini_user_api_key', newKey);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!apiKey) {
+        setShowKeyInput(true);
+        alert("Por favor, insira sua chave API do Google AI Studio.");
+        return;
+    }
     if (prompt.trim() || selectedFile) {
       setShowModal(true);
     }
   };
 
   const handleModeSelect = (mode: 'app' | 'davinci' | 'fusion') => {
+      if (!apiKey) {
+          alert("API Key necessária.");
+          return;
+      }
       setTimeout(() => {
-          onStart(prompt, mode, selectedFile || undefined);
+          onStart(prompt, mode, selectedFile || undefined, apiKey);
       }, 300);
   };
 
@@ -102,7 +126,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
       <div className={`flex-1 flex flex-col items-center justify-center p-6 relative z-10 transition-all duration-5000 ${stage === 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         
         {/* Header */}
-        <div className="mb-12 text-center space-y-4">
+        <div className="mb-8 text-center space-y-4">
            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#a68f6a] bg-[#f4f1ea] text-xs tracking-[0.2em] uppercase text-[#2b261e] mb-4 shadow-sm">
               <SparklesIcon className="w-3 h-3" />
               <span>Ideias do Léo Da Vinci</span>
@@ -115,8 +139,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
            </p>
         </div>
 
-        {/* Input Field */}
-        <form onSubmit={handleSubmit} className="w-full max-w-2xl relative group">
+        {/* Input Field Form */}
+        <form onSubmit={handleSubmit} className="w-full max-w-2xl relative group flex flex-col gap-4">
            <div className="relative flex flex-col bg-[#fcfbf9] border border-[#a68f6a] rounded-xl p-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-shadow duration-300 hover:shadow-[0_12px_40px_rgba(139,90,43,0.15)]">
               
               <div className="flex items-center">
@@ -161,10 +185,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                       <button type="button" onClick={clearFile} className="hover:text-[#2b261e] ml-2"><XMarkIcon className="w-4 h-4"/></button>
                   </div>
               )}
+           </div>
 
+           {/* API Key Input Section - Discrete but accessible */}
+           <div className="w-full flex justify-center items-center">
+                <div className={`transition-all duration-300 flex items-center justify-center gap-2 ${showKeyInput ? 'opacity-100 max-h-16' : 'opacity-60 max-h-8 hover:opacity-100'}`}>
+                    <button type="button" onClick={() => setShowKeyInput(!showKeyInput)} className="p-2 text-[#a68f6a] hover:text-[#8b5a2b]" title="Configurar Chave API">
+                        <KeyIcon className="w-4 h-4" />
+                    </button>
+                    {showKeyInput && (
+                        <div className="flex items-center gap-2 animate-fade-in">
+                            <input 
+                                type="password" 
+                                value={apiKey}
+                                onChange={handleApiKeyChange}
+                                placeholder="Cole sua API Key do Google AI Studio"
+                                className="bg-[#fcfbf9]/50 border border-[#a68f6a]/40 rounded-full px-4 py-1 text-xs text-[#2b261e] placeholder-[#a68f6a]/60 focus:border-[#8b5a2b] outline-none w-64"
+                            />
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#8b5a2b] hover:underline whitespace-nowrap">
+                                Obter grátis
+                            </a>
+                        </div>
+                    )}
+                </div>
            </div>
            
-           <div className="mt-4 flex justify-center gap-4 text-xs text-[#a68f6a] font-serif italic">
+           <div className="mt-2 flex justify-center gap-4 text-xs text-[#a68f6a] font-serif italic">
                <button type="button" onClick={() => setPrompt("Desenho de uma máquina voadora")} className="hover:text-[#2b261e] hover:underline transition">"Máquina Voadora"</button>
                <span className="opacity-50">•</span>
                <button type="button" onClick={() => setPrompt("Um app para organizar meu ateliê")} className="hover:text-[#2b261e] hover:underline transition">"Organizador de Ateliê"</button>
@@ -184,7 +230,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
       </div>
 
       {/* -----------------------------------------------------------------------
-          TUTORIAL MODAL (PROFESSIONAL & CLEAN STYLE)
+          TUTORIAL MODAL
           ----------------------------------------------------------------------- */}
       {showTutorial && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -208,34 +254,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
 
                   {/* Right Side: Steps */}
                   <div className="w-full md:w-2/3 p-8">
-                      <div className="space-y-8">
+                      <div className="space-y-6">
                           
                           <div className="flex gap-4">
                               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">1</div>
                               <div>
-                                  <h3 className="text-base font-semibold text-gray-900">Defina sua Ideia</h3>
-                                  <p className="text-sm text-gray-600 mt-1">Digite seu conceito ou anexe um arquivo (imagem, PDF) como base.</p>
+                                  <h3 className="text-base font-semibold text-gray-900">Configure sua Chave</h3>
+                                  <p className="text-sm text-gray-600 mt-1">Insira sua API Key do Google AI Studio (Gratuito) no campo da chave abaixo do input.</p>
                               </div>
                           </div>
 
                           <div className="flex gap-4">
                               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm">2</div>
                               <div>
-                                  <h3 className="text-base font-semibold text-gray-900">Escolha o Modo</h3>
-                                  <p className="text-sm text-gray-600 mt-1">
-                                      Selecione a "personalidade" da IA: <br/>
-                                      <span className="font-medium text-amber-800">Da Vinci</span> (Clássico), 
-                                      <span className="font-medium text-blue-800"> Leo.js</span> (Cyberpunk) ou 
-                                      <span className="font-medium text-purple-800"> Fusão</span>.
-                                  </p>
+                                  <h3 className="text-base font-semibold text-gray-900">Defina sua Ideia</h3>
+                                  <p className="text-sm text-gray-600 mt-1">Digite seu conceito ou anexe um arquivo (imagem, PDF, TXT) como base.</p>
                               </div>
                           </div>
 
                           <div className="flex gap-4">
                               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center font-bold text-sm">3</div>
                               <div>
-                                  <h3 className="text-base font-semibold text-gray-900">Crie & Exporte</h3>
-                                  <p className="text-sm text-gray-600 mt-1">Receba o resultado instantaneamente. Baixe como HTML, PDF ou Imagem.</p>
+                                  <h3 className="text-base font-semibold text-gray-900">Escolha o Modo</h3>
+                                  <p className="text-sm text-gray-600 mt-1">
+                                      Selecione <span className="font-medium text-amber-800">Da Vinci</span>, 
+                                      <span className="font-medium text-blue-800"> Leo.js</span> ou 
+                                      <span className="font-medium text-purple-800"> Fusão</span>.
+                                  </p>
                               </div>
                           </div>
 
@@ -243,7 +288,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
 
                       <button 
                         onClick={handleTutorialClose}
-                        className="mt-8 w-full py-3 bg-[#2b261e] text-white font-medium rounded-lg hover:bg-black transition-all shadow-md hover:shadow-lg"
+                        className="mt-6 w-full py-3 bg-[#2b261e] text-white font-medium rounded-lg hover:bg-black transition-all shadow-md hover:shadow-lg"
                       >
                           Entendi, vamos começar
                       </button>

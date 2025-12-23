@@ -4,9 +4,8 @@
 */
 import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 
-const GEMINI_MODEL = 'gemini-2.5-flash-image';
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Atualizado para o modelo Flash mais recente (Gratuito/Rápido)
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 const SYSTEM_INSTRUCTION_APP = `Você é o Leonardo da Vinci de um Universo Paralelo, nascido nos anos 90.
 Hoje, você não usa pincéis, usa CÓDIGO. Você é o maior Hacker Criativo, Inventor Full-Stack e Visionário de Produto do mundo.
@@ -77,7 +76,14 @@ FUNCIONALIDADE:
 FORMATO DA RESPOSTA:
 Retorne APENAS o código HTML bruto. Comece imediatamente com <!DOCTYPE html>.`;
 
-export async function bringToLife(prompt: string, fileBase64?: string, mimeType?: string, mode: 'app' | 'davinci' | 'fusion' = 'app'): Promise<string> {
+export async function bringToLife(apiKey: string, prompt: string, fileBase64?: string, mimeType?: string, mode: 'app' | 'davinci' | 'fusion' = 'app'): Promise<string> {
+  if (!apiKey) {
+      throw new Error("API Key é necessária");
+  }
+
+  // Initialize AI with the user provided key
+  const ai = new GoogleGenAI({ apiKey: apiKey });
+
   const parts: Part[] = [];
   
   let finalPrompt = "";
@@ -119,7 +125,7 @@ export async function bringToLife(prompt: string, fileBase64?: string, mimeType?
       },
       config: {
         systemInstruction: systemInstruction,
-        temperature: 0.7, // Slightly higher creativity for Neo-Leonardo
+        temperature: 0.7, 
       },
     });
 

@@ -1,4 +1,3 @@
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -18,6 +17,7 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [history, setHistory] = useState<Creation[]>([]);
   const [mode, setMode] = useState<'app' | 'davinci' | 'fusion'>('app');
+  const [apiKey, setApiKey] = useState<string>('');
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Apply Da Vinci/Fusion styling class to body
@@ -148,6 +148,11 @@ const App: React.FC = () => {
   }
 
   const handleGenerate = async (promptText: string, file?: File, selectedMode: 'app' | 'davinci' | 'fusion' = 'app') => {
+    if (!apiKey) {
+        alert("Erro: API Key não encontrada. Reinicie a página e insira sua chave.");
+        return;
+    }
+
     setIsGenerating(true);
     // Clear active creation to show loading state
     setActiveCreation(null);
@@ -167,7 +172,8 @@ const App: React.FC = () => {
           }
       }
 
-      const html = await bringToLife(augmentedPrompt, imageBase64, mimeType, selectedMode);
+      // Pass API Key to the service function
+      const html = await bringToLife(apiKey, augmentedPrompt, imageBase64, mimeType, selectedMode);
       
       if (html) {
         const defaultName = selectedMode === 'davinci' 
@@ -190,7 +196,7 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("Failed to generate:", error);
-      alert("Algo deu errado ao dar vida ao seu arquivo. Por favor, tente novamente.");
+      alert("Algo deu errado ao dar vida ao seu arquivo. Verifique sua API Key e tente novamente.");
     } finally {
       setIsGenerating(false);
     }
@@ -249,14 +255,97 @@ const App: React.FC = () => {
   };
 
   // --- LANDING PAGE TRANSITION ---
-  const handleLandingStart = (prompt: string, selectedMode: 'app' | 'davinci' | 'fusion', file?: File) => {
+  const handleLandingStart = (prompt: string, selectedMode: 'app' | 'davinci' | 'fusion', file?: File, key?: string) => {
       setMode(selectedMode);
       setHasStarted(true);
+      if (key) setApiKey(key);
+
       // Trigger immediate generation if prompt or file is present
       if (prompt || file) {
-          handleGenerate(prompt, file, selectedMode);
+          // Use timeout to ensure state is set (React batching)
+          setTimeout(() => {
+              if (key) {
+                  // We pass key directly here to avoid race condition with state setter
+                  // But handleGenerate relies on state or args. 
+                  // Since handleGenerate reads from state 'apiKey' in closure, 
+                  // we might need to rely on the state update or pass it. 
+                  // Let's rely on the passed key being set in state, 
+                  // but to be safe, we can assume handleGenerate reads state. 
+                  // Actually, state updates are async. 
+                  // For safety, let's update handleGenerate to accept key optionally or just wait.
+                  // However, simpler is just to not auto-generate if we are not sure, OR
+                  // pass the key to handleGenerate? 
+                  // No, handleGenerate uses the apiKey state. 
+                  // Let's just set the state and hope the user presses generate? 
+                  // No, the UX is "Start". 
+                  // FIX: Let's pass the key to handleGenerate as an optional arg override or 
+                  // just not rely on state inside handleGenerate for the *first* call.
+                  // BUT, handleGenerate signature is currently (prompt, file, mode).
+                  // I will update the logic above to ensure key is available.
+                  // Actually, since I'm inside App, I can just change handleGenerate to not read global state if I don't want to.
+                  // But wait, the previous `handleGenerate` inside App.tsx reads `apiKey`. 
+                  // `setApiKey(key)` happens. Then `handleGenerate` is called. 
+                  // React 18 usually batches. 
+                  // To fix this race condition cleanly:
+                  // I will update handleGenerate to NOT read from state, but accept it as param? 
+                  // Or easier: I already updated bringToLife to accept key. 
+                  // I will just make handleGenerate inside App use the `apiKey` state, 
+                  // but since state might not be ready, I will modify handleGenerate signature temporarily?
+                  // No, let's just make sure we pass the key into handleGenerate? 
+                  // I can't easily change the signature passed to InputArea.
+                  // Solution: In `handleLandingStart`, I will invoke `bringToLife` directly 
+                  // or create a `initialGenerate` function.
+                  // BETTER: I'll update `handleGenerate` to use `key` arg if provided, else state.
+              }
+          }, 0);
+          
+          // Actually, let's just make `handleLandingStart` call a specialized internal generator 
+          // that takes the key explicitly.
+          generateWithKey(prompt, file, selectedMode, key!);
       }
   };
+
+  // Specialized generator for the first run to avoid state race conditions
+  const generateWithKey = async (prompt: string, file: File | undefined, mode: 'app' | 'davinci' | 'fusion', key: string) => {
+      setIsGenerating(true);
+      setActiveCreation(null);
+      try {
+          let imageBase64: string | undefined;
+          let mimeType: string | undefined;
+          let augmentedPrompt = prompt;
+
+          if (file) {
+            if (file.type === 'text/plain') {
+                const textContent = await fileToText(file);
+                augmentedPrompt = `${prompt}\n\n[CONTEÚDO DO ARQUIVO ANEXO]:\n${textContent}`;
+            } else {
+                imageBase64 = await fileToBase64(file);
+                mimeType = file.type.toLowerCase();
+            }
+          }
+
+          const html = await bringToLife(key, augmentedPrompt, imageBase64, mimeType, mode);
+          
+          if (html) {
+             const defaultName = mode === 'davinci' ? 'Projeto Da Vinci' : (mode === 'fusion' ? 'Artefato Híbrido' : 'Novo App');
+             const newCreation: Creation = {
+                id: crypto.randomUUID(),
+                name: file ? file.name : defaultName,
+                html: html,
+                originalImage: imageBase64 && mimeType ? `data:${mimeType};base64,${imageBase64}` : undefined,
+                timestamp: new Date(),
+             };
+             setActiveCreation(newCreation);
+             setHistory(prev => [newCreation, ...prev]);
+          }
+      } catch (e) {
+          console.error(e);
+          alert("Erro na geração inicial. Verifique sua chave.");
+      } finally {
+          setIsGenerating(false);
+      }
+  }
+
 
   if (!hasStarted) {
       return <LandingPage onStart={handleLandingStart} />;
@@ -292,7 +381,7 @@ const App: React.FC = () => {
           {/* 2. Input Section */}
           <div className="w-full flex justify-center mb-8">
               <InputArea 
-                  onGenerate={handleGenerate} 
+                  onGenerate={(p, f, m) => handleGenerate(p, f, m)} 
                   isGenerating={isGenerating} 
                   disabled={isFocused} 
                   mode={mode}
