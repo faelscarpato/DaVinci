@@ -9,7 +9,149 @@ import { LivePreview } from './components/LivePreview';
 import { CreationHistory, Creation } from './components/CreationHistory';
 import { LandingPage } from './components/LandingPage';
 import { bringToLife } from './services/gemini';
+import { saveCreation, getHistory } from './services/storage';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
+
+// Embedded examples to prevent CORS issues
+const DEFAULT_EXAMPLES: Creation[] = [
+  {
+    id: 'example-1',
+    name: 'Calculadora Neon',
+    timestamp: new Date(),
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora Neon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+        body { font-family: 'Orbitron', sans-serif; background-color: #050505; }
+        .neon-text { text-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00; }
+        .neon-box { box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, inset 0 0 5px #00ff00; }
+        .btn { transition: all 0.1s; }
+        .btn:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="h-screen flex items-center justify-center text-green-500 overflow-hidden">
+    <div class="p-8 border-2 border-green-500 rounded-2xl neon-box bg-black/90 scale-90 sm:scale-100">
+        <div id="display" class="w-full h-16 mb-6 text-right text-3xl flex items-center justify-end px-4 border border-green-500/50 rounded bg-green-900/10 neon-text">0</div>
+        <div class="grid grid-cols-4 gap-4">
+            <button onclick="clearDisplay()" class="col-span-1 p-4 border border-green-500 rounded hover:bg-green-500/20 btn text-red-400">C</button>
+            <button onclick="append('/')" class="p-4 border border-green-500 rounded hover:bg-green-500/20 btn">/</button>
+            <button onclick="append('*')" class="p-4 border border-green-500 rounded hover:bg-green-500/20 btn">*</button>
+            <button onclick="backspace()" class="p-4 border border-green-500 rounded hover:bg-green-500/20 btn">←</button>
+            
+            <button onclick="append('7')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">7</button>
+            <button onclick="append('8')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">8</button>
+            <button onclick="append('9')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">9</button>
+            <button onclick="append('-')" class="p-4 border border-green-500 rounded hover:bg-green-500/20 btn">-</button>
+            
+            <button onclick="append('4')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">4</button>
+            <button onclick="append('5')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">5</button>
+            <button onclick="append('6')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">6</button>
+            <button onclick="append('+')" class="p-4 border border-green-500 rounded hover:bg-green-500/20 btn">+</button>
+            
+            <button onclick="append('1')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">1</button>
+            <button onclick="append('2')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">2</button>
+            <button onclick="append('3')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">3</button>
+            <button onclick="calculate()" class="row-span-2 p-4 border border-green-500 rounded hover:bg-green-500/20 btn neon-box flex items-center justify-center">=</button>
+            
+            <button onclick="append('0')" class="col-span-2 p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">0</button>
+            <button onclick="append('.')" class="p-4 border border-green-500/50 rounded hover:bg-green-500/10 btn">.</button>
+        </div>
+    </div>
+    <script>
+        let current = '';
+        const display = document.getElementById('display');
+        function append(val) { current += val; update(); }
+        function clearDisplay() { current = ''; update(); }
+        function backspace() { current = current.slice(0, -1); update(); }
+        function calculate() { try { current = eval(current).toString(); update(); } catch { current = 'Error'; update(); setTimeout(clearDisplay, 1000); } }
+        function update() { display.innerText = current || '0'; }
+    </script>
+</body>
+</html>`
+  },
+  {
+    id: 'example-2',
+    name: 'Estudo de Mecanismos',
+    timestamp: new Date(Date.now() - 86400000), // Yesterday
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Estudo de Mecanismos</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+        body { 
+            background-color: #f4f1ea; 
+            color: #2b261e; 
+            font-family: 'Libre Baskerville', serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh;
+            margin: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.2'/%3E%3C/svg%3E");
+        }
+        .codex-page {
+            border: 1px solid #a68f6a;
+            padding: 40px;
+            max-width: 600px;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        h1 { font-style: italic; border-bottom: 2px solid #2b261e; display: inline-block; padding-bottom: 10px; }
+        .sketch-container {
+            margin: 30px 0;
+            display: flex;
+            justify-content: center;
+        }
+        svg { overflow: visible; }
+        .gear { transform-origin: center; animation: spin 10s linear infinite; }
+        .gear-reverse { transform-origin: center; animation: spin-rev 10s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes spin-rev { 100% { transform: rotate(-360deg); } }
+        p { line-height: 1.6; text-align: justify; }
+    </style>
+</head>
+<body>
+    <div class="codex-page">
+        <h1>Machina Dentata</h1>
+        <p>Observando a natureza do movimento contínuo, concebi este arranjo de rodas dentadas. Assim como o cosmo gira em harmonia, estas engrenagens transferem força com precisão matemática.</p>
+        
+        <div class="sketch-container">
+            <svg width="200" height="200" viewBox="0 0 200 200">
+                <!-- Gear 1 -->
+                <g class="gear" transform="translate(60,100)">
+                    <circle cx="0" cy="0" r="40" fill="none" stroke="#2b261e" stroke-width="2" />
+                    <path d="M0 -50 L10 -40 L-10 -40 Z" fill="#2b261e" />
+                    <path d="M0 50 L10 40 L-10 40 Z" fill="#2b261e" />
+                    <path d="M50 0 L40 10 L40 -10 Z" fill="#2b261e" />
+                    <path d="M-50 0 L-40 10 L-40 -10 Z" fill="#2b261e" />
+                    <circle cx="0" cy="0" r="10" fill="#2b261e" />
+                </g>
+                <!-- Gear 2 -->
+                <g class="gear-reverse" transform="translate(140,100)">
+                    <circle cx="0" cy="0" r="40" fill="none" stroke="#2b261e" stroke-width="2" />
+                     <path d="M0 -50 L10 -40 L-10 -40 Z" fill="#2b261e" />
+                    <path d="M0 50 L10 40 L-10 40 Z" fill="#2b261e" />
+                    <path d="M50 0 L40 10 L40 -10 Z" fill="#2b261e" />
+                    <path d="M-50 0 L-40 10 L-40 -10 Z" fill="#2b261e" />
+                    <circle cx="0" cy="0" r="10" fill="#2b261e" />
+                </g>
+            </svg>
+        </div>
+        
+        <p><strong>Materiais:</strong> Madeira de carvalho para a resistência, eixos de bronze polido e óleo de linhaça para lubrificação.</p>
+    </div>
+</body>
+</html>`
+  }
+];
 
 const App: React.FC = () => {
   const [hasStarted, setHasStarted] = useState(false); // Controls Landing vs Workspace
@@ -32,86 +174,56 @@ const App: React.FC = () => {
     }
   }, [mode]);
 
-  // Load history from local storage or fetch examples on mount
+  // Load history from IndexedDB (with fallback migration from localStorage)
   useEffect(() => {
     const initHistory = async () => {
-      const saved = localStorage.getItem('gemini_app_history');
-      let loadedHistory: Creation[] = [];
+      try {
+        // 1. Try to load from IndexedDB
+        let loadedHistory = await getHistory();
 
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          loadedHistory = parsed.map((item: any) => ({
-              ...item,
-              timestamp: new Date(item.timestamp)
-          }));
-        } catch (e) {
-          console.error("Failed to load history", e);
+        // 2. Migration Check: If IDB is empty, check localStorage
+        if (loadedHistory.length === 0) {
+            const localSaved = localStorage.getItem('gemini_app_history');
+            if (localSaved) {
+                try {
+                    const parsed = JSON.parse(localSaved);
+                    console.log("Migrating history from localStorage to IndexedDB...");
+                    // Migrate each item
+                    for (const item of parsed) {
+                        const creation = {
+                            ...item,
+                            timestamp: new Date(item.timestamp)
+                        };
+                        await saveCreation(creation);
+                    }
+                    // Reload from DB to confirm
+                    loadedHistory = await getHistory();
+                    // Clear localStorage to free up space
+                    localStorage.removeItem('gemini_app_history');
+                } catch (e) {
+                    console.error("Migration failed", e);
+                }
+            }
         }
-      }
 
-      if (loadedHistory.length > 0) {
+        // 3. If still empty (new user), load default examples locally
+        if (loadedHistory.length === 0) {
+            console.log("Loading default examples...");
+            // Save defaults to DB
+            for (const example of DEFAULT_EXAMPLES) {
+                await saveCreation(example);
+            }
+            loadedHistory = DEFAULT_EXAMPLES;
+        }
+
         setHistory(loadedHistory);
-      } else {
-        // If no history (new user or cleared), load examples
-        try {
-           const exampleUrls = [
-               'https://storage.googleapis.com/sideprojects-asronline/bringanythingtolife/vibecode-blog.json',
-               'https://storage.googleapis.com/sideprojects-asronline/bringanythingtolife/cassette.json',
-               'https://storage.googleapis.com/sideprojects-asronline/bringanythingtolife/chess.json'
-           ];
-
-           const examples = await Promise.all(exampleUrls.map(async (url) => {
-               const res = await fetch(url);
-               if (!res.ok) return null;
-               const data = await res.json();
-               return {
-                   ...data,
-                   timestamp: new Date(data.timestamp || Date.now()),
-                   id: data.id || crypto.randomUUID()
-               };
-           }));
-           
-           const validExamples = examples.filter((e): e is Creation => e !== null);
-           setHistory(validExamples);
-        } catch (e) {
-            console.error("Failed to load examples", e);
-        }
+      } catch (e) {
+        console.error("Failed to initialize history", e);
       }
     };
 
     initHistory();
   }, []);
-
-  // Save history when it changes with Safe Fallback for Quota Exceeded
-  useEffect(() => {
-    if (history.length > 0) {
-        const KEY = 'gemini_app_history';
-        try {
-            localStorage.setItem(KEY, JSON.stringify(history));
-        } catch (e: any) {
-            // Check for quota exceeded error names across browsers
-            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-                console.warn("Local storage full, attempting to save without image data...", e);
-                
-                // Fallback: If quota exceeded, save history BUT strip the heavy 'originalImage' from items
-                // We prioritize saving the generated code over the source image.
-                try {
-                    const historyWithoutImages = history.map(item => ({
-                        ...item,
-                        originalImage: undefined // Remove heavy base64
-                    }));
-                    localStorage.setItem(KEY, JSON.stringify(historyWithoutImages));
-                    console.log("History saved (without images) to save space.");
-                } catch (retryError) {
-                    console.error("Critical: Could not save history even without images.", retryError);
-                }
-            } else {
-                console.error("Unknown Storage Error:", e);
-            }
-        }
-    }
-  }, [history]);
 
   // Helper to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
@@ -145,7 +257,7 @@ const App: React.FC = () => {
           }
           reader.onerror = (error) => reject(error);
       });
-  }
+  };
 
   const handleGenerate = async (promptText: string, file?: File, selectedMode: 'app' | 'davinci' | 'fusion' = 'app') => {
     if (!apiKey) {
@@ -154,7 +266,6 @@ const App: React.FC = () => {
     }
 
     setIsGenerating(true);
-    // Clear active creation to show loading state
     setActiveCreation(null);
 
     try {
@@ -186,17 +297,26 @@ const App: React.FC = () => {
           id: crypto.randomUUID(),
           name: file ? file.name : defaultName,
           html: html,
-          // Store the full data URL for easy display, unless it was a text file
           originalImage: imageBase64 && mimeType ? `data:${mimeType};base64,${imageBase64}` : undefined,
           timestamp: new Date(),
         };
+        
+        // Save to DB immediately
+        await saveCreation(newCreation);
+
         setActiveCreation(newCreation);
         setHistory(prev => [newCreation, ...prev]);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to generate:", error);
-      alert("Algo deu errado ao dar vida ao seu arquivo. Verifique sua API Key e tente novamente.");
+      
+      // Specifically handle 429 Quota Exceeded errors
+      if (error.message && (error.message.includes('429') || error.message.includes('quota'))) {
+          alert("⚠️ Cota da API Excedida (Erro 429).\n\nVocê está usando a versão gratuita do Gemini, que tem limites por minuto/dia.\n\nAguarde alguns instantes e tente novamente, ou verifique o uso no painel do Google AI Studio.");
+      } else {
+          alert("Algo deu errado ao dar vida ao seu arquivo. Verifique se sua API Key é válida e tem permissões.");
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -220,7 +340,7 @@ const App: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
         try {
             const json = event.target?.result as string;
             const parsed = JSON.parse(json);
@@ -233,6 +353,9 @@ const App: React.FC = () => {
                     id: parsed.id || crypto.randomUUID()
                 };
                 
+                // Save to DB
+                await saveCreation(importedCreation);
+
                 // Add to history if not already there (by ID check)
                 setHistory(prev => {
                     const exists = prev.some(c => c.id === importedCreation.id);
@@ -262,46 +385,10 @@ const App: React.FC = () => {
 
       // Trigger immediate generation if prompt or file is present
       if (prompt || file) {
-          // Use timeout to ensure state is set (React batching)
           setTimeout(() => {
-              if (key) {
-                  // We pass key directly here to avoid race condition with state setter
-                  // But handleGenerate relies on state or args. 
-                  // Since handleGenerate reads from state 'apiKey' in closure, 
-                  // we might need to rely on the state update or pass it. 
-                  // Let's rely on the passed key being set in state, 
-                  // but to be safe, we can assume handleGenerate reads state. 
-                  // Actually, state updates are async. 
-                  // For safety, let's update handleGenerate to accept key optionally or just wait.
-                  // However, simpler is just to not auto-generate if we are not sure, OR
-                  // pass the key to handleGenerate? 
-                  // No, handleGenerate uses the apiKey state. 
-                  // Let's just set the state and hope the user presses generate? 
-                  // No, the UX is "Start". 
-                  // FIX: Let's pass the key to handleGenerate as an optional arg override or 
-                  // just not rely on state inside handleGenerate for the *first* call.
-                  // BUT, handleGenerate signature is currently (prompt, file, mode).
-                  // I will update the logic above to ensure key is available.
-                  // Actually, since I'm inside App, I can just change handleGenerate to not read global state if I don't want to.
-                  // But wait, the previous `handleGenerate` inside App.tsx reads `apiKey`. 
-                  // `setApiKey(key)` happens. Then `handleGenerate` is called. 
-                  // React 18 usually batches. 
-                  // To fix this race condition cleanly:
-                  // I will update handleGenerate to NOT read from state, but accept it as param? 
-                  // Or easier: I already updated bringToLife to accept key. 
-                  // I will just make handleGenerate inside App use the `apiKey` state, 
-                  // but since state might not be ready, I will modify handleGenerate signature temporarily?
-                  // No, let's just make sure we pass the key into handleGenerate? 
-                  // I can't easily change the signature passed to InputArea.
-                  // Solution: In `handleLandingStart`, I will invoke `bringToLife` directly 
-                  // or create a `initialGenerate` function.
-                  // BETTER: I'll update `handleGenerate` to use `key` arg if provided, else state.
-              }
-          }, 0);
-          
-          // Actually, let's just make `handleLandingStart` call a specialized internal generator 
-          // that takes the key explicitly.
-          generateWithKey(prompt, file, selectedMode, key!);
+             // Defer execution to allow state updates
+             generateWithKey(prompt, file, selectedMode, key!);
+          }, 100);
       }
   };
 
@@ -335,17 +422,23 @@ const App: React.FC = () => {
                 originalImage: imageBase64 && mimeType ? `data:${mimeType};base64,${imageBase64}` : undefined,
                 timestamp: new Date(),
              };
+             
+             await saveCreation(newCreation);
+
              setActiveCreation(newCreation);
              setHistory(prev => [newCreation, ...prev]);
           }
-      } catch (e) {
+      } catch (e: any) {
           console.error(e);
-          alert("Erro na geração inicial. Verifique sua chave.");
+          if (e.message && (e.message.includes('429') || e.message.includes('quota'))) {
+            alert("⚠️ Cota da API Excedida (Erro 429).\n\nAguarde alguns instantes e tente novamente.");
+          } else {
+            alert("Erro na geração inicial. Verifique sua chave.");
+          }
       } finally {
           setIsGenerating(false);
       }
   }
-
 
   if (!hasStarted) {
       return <LandingPage onStart={handleLandingStart} />;
