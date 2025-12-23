@@ -4,7 +4,7 @@
 */
 import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 
-const GEMINI_MODEL = 'gemini-3-pro-preview';
+const GEMINI_MODEL = 'gemini-2.5-flash-image';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
