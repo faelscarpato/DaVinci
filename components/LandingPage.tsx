@@ -4,6 +4,7 @@
 */
 import React, { useState, useEffect, useRef } from 'react';
 import { SparklesIcon, CodeBracketIcon, PaintBrushIcon, BoltIcon, ArrowRightIcon, PaperClipIcon, XMarkIcon, DocumentIcon, PhotoIcon, QuestionMarkCircleIcon, LightBulbIcon, KeyIcon } from '@heroicons/react/24/outline';
+import { GEMINI_USER_API_KEY_STORAGE } from '../services/gemini';
 
 interface LandingPageProps {
   onStart: (prompt: string, mode: 'app' | 'davinci' | 'fusion', file: File | undefined, apiKey: string) => void;
@@ -22,7 +23,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
 
   useEffect(() => {
     // Check local storage for API Key
-    const savedKey = localStorage.getItem('gemini_user_api_key');
+    const savedKey = localStorage.getItem(GEMINI_USER_API_KEY_STORAGE);
     if (savedKey) {
         setApiKey(savedKey);
     } else {
@@ -45,14 +46,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const newKey = e.target.value;
       setApiKey(newKey);
-      localStorage.setItem('gemini_user_api_key', newKey);
+      localStorage.setItem(GEMINI_USER_API_KEY_STORAGE, newKey);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!apiKey) {
         setShowKeyInput(true);
-        alert("Por favor, insira sua chave API do Google AI Studio.");
+        alert("Por favor, insira sua chave API do Google AI Studio ou configure GEMINI_API_KEY no ambiente.");
         return;
     }
     if (prompt.trim() || selectedFile) {
@@ -62,7 +63,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
 
   const handleModeSelect = (mode: 'app' | 'davinci' | 'fusion') => {
       if (!apiKey) {
-          alert("API Key necessária.");
+          alert("API Key necessária. Use o campo abaixo ou configure GEMINI_API_KEY antes de gerar.");
           return;
       }
       setTimeout(() => {
