@@ -7,8 +7,8 @@ import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 // Modelo gratuito / rápido
 const GEMINI_MODEL = "gemini-2.0-flash";
 
-export const GEMINI_USER_API_KEY_STORAGE = "gemini_user_api_key";
-const LEGACY_CAPY_KEY = "capy_gemini_key"; // Compatibilidade com versões antigas
+export const GEMINI_API_KEY_STORAGE = "capy_gemini_key";
+const ALT_API_KEY_STORAGE = "gemini_user_api_key"; // compatibilidade com versão anterior do DaVinci
 
 /* ======================================================
    SYSTEM INSTRUCTIONS
@@ -74,6 +74,10 @@ Retorne APENAS o HTML bruto.`;
    FUNÇÃO PRINCIPAL
 ====================================================== */
 
+/**
+ * Gera o conteúdo HTML de acordo com o prompt fornecido, podendo incluir 
+ * imagem ou texto anexado, utilizando a API Gemini.
+ */
 export async function bringToLife(
   apiKeyInput: string | undefined,
   prompt: string,
@@ -95,7 +99,7 @@ export async function bringToLife(
   let finalPrompt = "";
   let systemInstruction = SYSTEM_INSTRUCTION_APP;
 
-  // Seleção de modo
+  // Seleção de modo (define instrução de sistema e prompt base conforme o contexto)
   if (mode === "davinci") {
     systemInstruction = SYSTEM_INSTRUCTION_DAVINCI;
     finalPrompt = fileBase64
@@ -107,22 +111,26 @@ export async function bringToLife(
       ? "Crie uma Máquina Digital futurista baseada nesta imagem."
       : prompt || "Crie um artefato cyber-renascentista interativo.";
   } else {
+    // modo "app" (padrão)
     finalPrompt = fileBase64
       ? "Analise a imagem e crie um Web App funcional, criativo e útil."
       : prompt || "Invente um software revolucionário agora.";
   }
 
+  // Adiciona o prompt principal como primeira parte do conteúdo
   parts.push({ text: finalPrompt });
 
+  // Se houver arquivo de imagem ou outro tipo, adiciona como parte de dados embutidos (inlineData)
   if (fileBase64 && mimeType) {
     parts.push({
       inlineData: {
         data: fileBase64,
-        mimeType,
+        mimeType: mimeType,
       },
     });
   }
 
+  // Chamada para a API Gemini para gerar o conteúdo
   const response: GenerateContentResponse = await ai.models.generateContent({
     model: GEMINI_MODEL,
     contents: { parts },
@@ -156,7 +164,9 @@ export function normalizeGeminiError(error: any): { message: string; isQuota: bo
 
   if (isQuota) {
     const retryInfo = error?.error?.details?.find((d: any) => d?.retryDelay);
-    const retry = retryInfo?.retryDelay ? `Tente novamente após ${retryInfo.retryDelay}.` : "Tente novamente em instantes.";
+    const retry = retryInfo?.retryDelay 
+      ? `Tente novamente após ${retryInfo.retryDelay}.` 
+      : "Tente novamente em instantes.";
 
     return {
       isQuota: true,
@@ -170,16 +180,20 @@ export function normalizeGeminiError(error: any): { message: string; isQuota: bo
   return { isQuota: false, message: rawMessage };
 }
 
+/**
+ * Resolve a chave de API do Gemini, usando a fornecida explicitamente ou buscando 
+ * no localStorage e variáveis de ambiente, com compatibilidade legada.
+ */
 export function resolveGeminiApiKey(explicitKey?: string): string {
   const provided = (explicitKey || "").trim();
   if (provided) return provided;
 
-  const storedKey = readBrowserKey(GEMINI_USER_API_KEY_STORAGE);
+  const storedKey = readBrowserKey(GEMINI_API_KEY_STORAGE);
   if (storedKey) return storedKey;
 
-  // Fallback legado documentado para compatibilidade
-  const legacyKey = readBrowserKey(LEGACY_CAPY_KEY);
-  if (legacyKey) return legacyKey;
+  // Fallback de compatibilidade (versão anterior armazenava em chave diferente)
+  const altStoredKey = readBrowserKey(ALT_API_KEY_STORAGE);
+  if (altStoredKey) return altStoredKey;
 
   if (typeof process !== "undefined" && process.env?.GEMINI_API_KEY) {
     return (process.env.GEMINI_API_KEY || "").trim();
