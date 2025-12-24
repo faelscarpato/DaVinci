@@ -143,6 +143,33 @@ export async function bringToLife(
   return output;
 }
 
+/**
+ * Normaliza mensagens de erro da API para diferenciar chave inválida de cota esgotada.
+ */
+export function normalizeGeminiError(error: any): { message: string; isQuota: boolean } {
+  const rawMessage = error?.error?.message || error?.message || "Erro desconhecido";
+  const normalized = rawMessage.toLowerCase();
+  const isQuota =
+    normalized.includes("quota") ||
+    normalized.includes("resource_exhausted") ||
+    normalized.includes("429");
+
+  if (isQuota) {
+    const retryInfo = error?.error?.details?.find((d: any) => d?.retryDelay);
+    const retry = retryInfo?.retryDelay ? `Tente novamente após ${retryInfo.retryDelay}.` : "Tente novamente em instantes.";
+
+    return {
+      isQuota: true,
+      message:
+        "⚠️ Cota do Gemini excedida. Ative faturamento ou use um projeto com limites disponíveis. " +
+        "Veja https://ai.google.dev/gemini-api/docs/quotas. " +
+        retry,
+    };
+  }
+
+  return { isQuota: false, message: rawMessage };
+}
+
 export function resolveGeminiApiKey(explicitKey?: string): string {
   const provided = (explicitKey || "").trim();
   if (provided) return provided;

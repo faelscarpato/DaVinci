@@ -8,7 +8,7 @@ import { InputArea } from './components/InputArea';
 import { LivePreview } from './components/LivePreview';
 import { CreationHistory, Creation } from './components/CreationHistory';
 import { LandingPage } from './components/LandingPage';
-import { bringToLife, resolveGeminiApiKey } from './services/gemini';
+import { bringToLife, normalizeGeminiError, resolveGeminiApiKey } from './services/gemini';
 import { saveCreation, getHistory } from './services/storage';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
@@ -311,12 +311,12 @@ const App: React.FC = () => {
 
     } catch (error: any) {
       console.error("Failed to generate:", error);
-      
-      // Specifically handle 429 Quota Exceeded errors
-      if (error.message && (error.message.includes('429') || error.message.includes('quota'))) {
-          alert("⚠️ Cota da API Excedida (Erro 429).\n\nVocê está usando a versão gratuita do Gemini, que tem limites por minuto/dia.\n\nAguarde alguns instantes e tente novamente, ou verifique o uso no painel do Google AI Studio.");
+
+      const normalized = normalizeGeminiError(error);
+      if (normalized.isQuota) {
+        alert(normalized.message);
       } else {
-          alert("Algo deu errado ao dar vida ao seu arquivo. Verifique se sua API Key é válida e tem permissões.");
+        alert("Algo deu errado ao dar vida ao seu arquivo. Verifique se sua API Key é válida e tem permissões.\n\n" + normalized.message);
       }
     } finally {
       setIsGenerating(false);
@@ -438,10 +438,11 @@ const App: React.FC = () => {
           }
       } catch (e: any) {
           console.error(e);
-          if (e.message && (e.message.includes('429') || e.message.includes('quota'))) {
-            alert("⚠️ Cota da API Excedida (Erro 429).\n\nAguarde alguns instantes e tente novamente.");
+          const normalized = normalizeGeminiError(e);
+          if (normalized.isQuota) {
+            alert(normalized.message);
           } else {
-            alert("Erro na geração inicial. Verifique sua chave.");
+            alert("Erro na geração inicial. Verifique sua chave.\n\n" + normalized.message);
           }
       } finally {
           setIsGenerating(false);
