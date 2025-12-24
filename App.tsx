@@ -284,7 +284,13 @@ const App: React.FC = () => {
       }
 
       // Pass API Key to the service function
-      const html = await bringToLife(apiKey, augmentedPrompt, imageBase64, mimeType, selectedMode);
+      const html = await bringToLife({
+        apiKey,
+        prompt: augmentedPrompt,
+        fileBase64: imageBase64,
+        mimeType,
+        mode: selectedMode
+      });
       
       if (html) {
         const defaultName = selectedMode === 'davinci' 
@@ -411,7 +417,13 @@ const App: React.FC = () => {
             }
           }
 
-          const html = await bringToLife(key, augmentedPrompt, imageBase64, mimeType, mode);
+          const html = await bringToLife({
+            apiKey: key,
+            prompt: augmentedPrompt,
+            fileBase64: imageBase64,
+            mimeType,
+            mode
+          });
           
           if (html) {
              const defaultName = mode === 'davinci' ? 'Projeto Da Vinci' : (mode === 'fusion' ? 'Artefato Híbrido' : 'Novo App');
