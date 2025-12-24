@@ -2,16 +2,19 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
+import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 
-// Modelo e endpoint direto (fetch)
+// Modelo gratuito / rápido
 const GEMINI_MODEL = "gemini-2.0-flash";
-const GEMINI_API_BASE =
-  "https://generativelanguage.googleapis.com/v1beta/models";
 
-export const GEMINI_API_KEY_STORAGE = "capy_gemini_key";
-const ALT_API_KEY_STORAGE = "gemini_user_api_key"; // compatibilidade com versões antigas
-
-type Mode = "app" | "davinci" | "fusion";
+/**
+ * Lê a chave Gemini diretamente do CapyUniverse
+ * (Configurações > Chave API Gemini)
+ */
+function getCapyUniverseApiKey(): string {
+  if (typeof window === "undefined") return "";
+  return (localStorage.getItem("capy_gemini_key") || "").trim();
+}
 
 /* ======================================================
    SYSTEM INSTRUCTIONS
@@ -23,14 +26,14 @@ Sua mente combina a engenhosidade mecânica do Renascimento com a escalabilidade
 
 SEU OBJETIVO:
 Olhar para o input (imagem ou texto) e inventar uma "Engenhoca Digital" (Web App) que seja:
-1. **Genial**
-2. **Viável & Útil**
-3. **Esteticamente Incrível**
+1. Genial
+2. Viável e útil
+3. Esteticamente incrível
 
-REGRAS TÉCNICAS (Obrigatório):
-- Single File (1 HTML)
+REGRAS TÉCNICAS:
+- Single file (1 HTML)
 - Sem imagens externas
-- Interatividade total
+- Interatividade real
 - Tailwind via CDN
 - Idioma: PT-BR
 
@@ -40,25 +43,25 @@ Retorne APENAS o HTML bruto começando com <!DOCTYPE html>.`;
 const SYSTEM_INSTRUCTION_DAVINCI = `Você é Leonardo Da Vinci (1452).
 Crie um Codex artístico em HTML com estética de pergaminho.
 
-ESTILO (Obrigatório):
+ESTILO:
 - Fundo #f4f1ea
-- Tipografia serif clássica
+- Serif clássica
+- SVGs estilo esboço
 - Tons sépia
-- SVG inline estilo esboço (traço de pena)
 
 SEÇÕES:
-1) Título
-2) Observação filosófica
-3) Invenção/Solução
-4) Materiais
-5) Paleta
-6) Instruções
+1. Título
+2. Observação filosófica
+3. Invenção
+4. Materiais
+5. Paleta
+6. Instruções
 
 FORMATO:
-Retorne APENAS o HTML bruto começando com <!DOCTYPE html>.`;
+Retorne APENAS o HTML bruto.`;
 
 const SYSTEM_INSTRUCTION_FUSION = `Você é o Arquiteto do Renascimento Digital.
-Misture a estética de 1500 com a funcionalidade de 2050.
+Misture Da Vinci + tecnologia futurista.
 
 ESTÉTICA:
 - Fundo escuro
@@ -66,54 +69,139 @@ ESTÉTICA:
 - Tipografia serif + mono
 
 FUNCIONALIDADE:
-- Ferramentas úteis (dashboards, calculadoras, simuladores)
-- UI misteriosa, mas usável
+- Dashboards
+- Calculadoras
+- Simuladores
 
 FORMATO:
-Retorne APENAS o HTML bruto começando com <!DOCTYPE html>.`;
+Retorne APENAS o HTML bruto.`;
+
+type GenerationMode = "app" | "davinci" | "fusion";
+
+type BringToLifeParams =
+  | [apiKey: string, prompt: string, fileBase64?: string, mimeType?: string, mode?: GenerationMode]
+  | [
+      params: {
+        apiKey?: string;
+        prompt: string;
+        fileBase64?: string;
+        mimeType?: string;
+        mode?: GenerationMode;
+      },
+    ];
+
+const isLikelyApiKey = (value: string | undefined) =>
+  !!value && /^AIza[0-9A-Za-z\-_]{30,}$/.test(value.trim());
+
+const normalizeArgs = (...args: BringToLifeParams) => {
+  if (typeof args[0] === "string") {
+    const [apiKey, prompt, fileBase64, mimeType, mode] = args as [
+      string,
+      string,
+      string | undefined,
+      string | undefined,
+      GenerationMode | undefined
+    ];
+
+    if (typeof prompt !== "string" || prompt.trim().length === 0) {
+      throw new Error(
+        "O segundo argumento deve ser o prompt de texto (string não vazia)."
+      );
+    }
+
+    return {
+      apiKey,
+      prompt,
+      fileBase64,
+      mimeType,
+      mode: mode ?? "app",
+    };
+  }
+
+  const [{ apiKey, prompt, fileBase64, mimeType, mode }] = args;
+
+  if (typeof prompt !== "string" || prompt.trim().length === 0) {
+    throw new Error("O prompt deve ser uma string não vazia.");
+  }
+
+  return {
+    apiKey,
+    prompt,
+    fileBase64,
+    mimeType,
+    mode: mode ?? "app",
+  };
+};
 
 /* ======================================================
-   PUBLIC API
+   FUNÇÃO PRINCIPAL
 ====================================================== */
 
 export async function bringToLife(
-  apiKeyInput: string | undefined,
-  prompt: string,
-  fileBase64?: string,
-  mimeType?: string,
-  mode: Mode = "app"
+  ...args: BringToLifeParams
 ): Promise<string> {
-  const geminiApiKey = resolveGeminiApiKey(apiKeyInput);
+  const {
+    apiKey: providedKey,
+    prompt: rawPrompt,
+    fileBase64,
+    mimeType,
+    mode,
+  } = normalizeArgs(...args);
 
-  if (!geminiApiKey) {
+  const apiKey = (providedKey || getCapyUniverseApiKey()).trim();
+
+  if (!apiKey) {
     throw new Error(
-      "Chave Gemini não encontrada. Cadastre no CapyUniverse (capy_gemini_key) ou forneça explicitamente."
+      "Chave Gemini não encontrada. Configure em: CapyUniverse > Ajustes > Chave API Gemini."
     );
   }
 
-  // 1) Seleciona instruction + prompt final
-  let systemInstruction = SYSTEM_INSTRUCTION_APP;
-  let finalPrompt = "";
+  if (isLikelyApiKey(rawPrompt)) {
+    throw new Error(
+      "Prompt inválido: parece que a chave API foi usada no lugar do prompt."
+    );
+  }
 
+  if ((fileBase64 && !mimeType) || (!fileBase64 && mimeType)) {
+    throw new Error(
+      "Arquivo inválido: forneça fileBase64 e mimeType juntos ou nenhum dos dois."
+    );
+  }
+
+  if (fileBase64 && typeof fileBase64 !== "string") {
+    throw new Error("fileBase64 deve ser uma string base64.");
+  }
+
+  if (mimeType && typeof mimeType !== "string") {
+    throw new Error("mimeType deve ser uma string MIME válida.");
+  }
+
+  const prompt = rawPrompt.trim();
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  const parts: Part[] = [];
+  let finalPrompt = "";
+  let systemInstruction = SYSTEM_INSTRUCTION_APP;
+
+  // Seleção de modo
   if (mode === "davinci") {
     systemInstruction = SYSTEM_INSTRUCTION_DAVINCI;
     finalPrompt = fileBase64
-      ? "Analise esta imagem como Leonardo Da Vinci e gere um Codex HTML estilo pergaminho com as seções pedidas."
-      : prompt || "Crie um Codex artístico e mecânico em HTML.";
+      ? "Analise a imagem e crie um Codex artístico em HTML no estilo Da Vinci."
+      : prompt || "Crie um estudo artístico ou mecânico.";
   } else if (mode === "fusion") {
     systemInstruction = SYSTEM_INSTRUCTION_FUSION;
     finalPrompt = fileBase64
-      ? "Crie uma Máquina Digital baseada nesta imagem, misturando estética renascentista com UI futurista. Faça funcionar."
-      : prompt || "Crie um artefato cyber-renascentista interativo em HTML.";
+      ? "Crie uma Máquina Digital futurista baseada nesta imagem."
+      : prompt || "Crie um artefato cyber-renascentista interativo.";
   } else {
-    systemInstruction = SYSTEM_INSTRUCTION_APP;
     finalPrompt = fileBase64
-      ? "Analise a imagem. Encontre um problema oculto e crie um Web App completo em HTML/JS para resolver."
+      ? "Analise a imagem e crie um Web App funcional, criativo e útil."
       : prompt || "Invente um software revolucionário agora.";
   }
 
-  // 2) Monta parts (prompt + optional inlineData)
-  const parts: any[] = [{ text: finalPrompt }];
+  parts.push({ text: finalPrompt });
 
   if (fileBase64 && mimeType) {
     parts.push({
@@ -124,87 +212,22 @@ export async function bringToLife(
     });
   }
 
-  // 3) Faz a chamada direta via fetch (sem SDK)
-  const url = `${GEMINI_API_BASE}/${encodeURIComponent(
-    GEMINI_MODEL
-  )}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
-
-  const body = {
-    contents: [{ parts }],
-    // systemInstruction no v1beta vai em "systemInstruction" dentro de "generationConfig"? não.
-    // O formato mais compatível (e padrão do v1beta) é enviar "systemInstruction" em "system_instruction"
-    // mas ele varia; o que costuma funcionar bem é enviar como "systemInstruction" no top-level.
-    // Se sua conta/endpoint ignorar, ainda funciona via prompt.
-    systemInstruction: { parts: [{ text: systemInstruction }] },
-    generationConfig: {
+  const response: GenerateContentResponse = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: { parts },
+    config: {
+      systemInstruction,
       temperature: 0.7,
     },
-  };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
   });
 
-  // 4) Tratamento de erro limpo
-  if (!res.ok) {
-    const errText = await safeReadText(res);
-    const msg = `Erro na API: ${res.status} ${res.statusText}${
-      errText ? ` | ${errText}` : ""
-    }`;
-    throw new Error(msg);
-  }
+  let output = response.text || "<!-- Falha ao gerar conteúdo -->";
 
-  const result = await res.json();
-
-  // 5) Extrai texto com fallback
-  let text: string =
-    result?.candidates?.[0]?.content?.parts?.[0]?.text ||
-    "<!-- Falha ao gerar conteúdo -->";
-
-  // Limpa fences (caso venha em markdown)
-  text = text
+  // Remove fences de markdown, se vierem
+  output = output
     .replace(/^```html\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```$/i, "");
 
-  return text;
-}
-
-/**
- * Resolve chave do Gemini usando:
- * - explicitKey (se vier)
- * - localStorage('capy_gemini_key')
- * - fallback localStorage('gemini_user_api_key') e migra
- */
-export function resolveGeminiApiKey(explicitKey?: string): string {
-  const provided = (explicitKey || "").trim();
-  if (provided) return provided;
-
-  if (typeof window === "undefined") return "";
-
-  const primary = (localStorage.getItem(GEMINI_API_KEY_STORAGE) || "").trim();
-  if (primary) return primary;
-
-  const legacy = (localStorage.getItem(ALT_API_KEY_STORAGE) || "").trim();
-  if (legacy) {
-    // migra para o padrão CapyUniverse
-    localStorage.setItem(GEMINI_API_KEY_STORAGE, legacy);
-    return legacy;
-  }
-
-  return "";
-}
-
-/* ======================================================
-   HELPERS
-====================================================== */
-
-async function safeReadText(res: Response): Promise<string> {
-  try {
-    return await res.text();
-  } catch {
-    return "";
-  }
+  return output;
 }
