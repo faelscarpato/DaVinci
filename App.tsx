@@ -8,7 +8,7 @@ import { InputArea } from './components/InputArea';
 import { LivePreview } from './components/LivePreview';
 import { CreationHistory, Creation } from './components/CreationHistory';
 import { LandingPage } from './components/LandingPage';
-import { bringToLife } from './services/gemini';
+import { bringToLife, resolveGeminiApiKey } from './services/gemini';
 import { saveCreation, getHistory } from './services/storage';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
@@ -260,11 +260,12 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async (promptText: string, file?: File, selectedMode: 'app' | 'davinci' | 'fusion' = 'app') => {
-    if (!apiKey) {
-        alert("Erro: API Key não encontrada. Reinicie a página e insira sua chave.");
+    const effectiveKey = resolveGeminiApiKey(apiKey);
+    if (!effectiveKey) {
+        alert("Erro: nenhuma API Key do Gemini encontrada. Informe pelo campo de chave ou defina a variável de ambiente GEMINI_API_KEY.");
         return;
     }
-
+    
     setIsGenerating(true);
     setActiveCreation(null);
 
@@ -284,13 +285,7 @@ const App: React.FC = () => {
       }
 
       // Pass API Key to the service function
-      const html = await bringToLife({
-        apiKey,
-        prompt: augmentedPrompt,
-        fileBase64: imageBase64,
-        mimeType,
-        mode: selectedMode
-      });
+      const html = await bringToLife(effectiveKey, augmentedPrompt, imageBase64, mimeType, selectedMode);
       
       if (html) {
         const defaultName = selectedMode === 'davinci' 
@@ -387,19 +382,26 @@ const App: React.FC = () => {
   const handleLandingStart = (prompt: string, selectedMode: 'app' | 'davinci' | 'fusion', file?: File, key?: string) => {
       setMode(selectedMode);
       setHasStarted(true);
-      if (key) setApiKey(key);
+      const effectiveKey = resolveGeminiApiKey(key);
+      setApiKey(effectiveKey);
 
       // Trigger immediate generation if prompt or file is present
       if (prompt || file) {
           setTimeout(() => {
              // Defer execution to allow state updates
-             generateWithKey(prompt, file, selectedMode, key!);
+             generateWithKey(prompt, file, selectedMode, effectiveKey);
           }, 100);
       }
   };
 
   // Specialized generator for the first run to avoid state race conditions
   const generateWithKey = async (prompt: string, file: File | undefined, mode: 'app' | 'davinci' | 'fusion', key: string) => {
+      const effectiveKey = resolveGeminiApiKey(key);
+      if (!effectiveKey) {
+          alert("Erro: nenhuma API Key do Gemini encontrada. Informe pelo campo de chave ou defina a variável de ambiente GEMINI_API_KEY.");
+          return;
+      }
+
       setIsGenerating(true);
       setActiveCreation(null);
       try {
@@ -417,13 +419,7 @@ const App: React.FC = () => {
             }
           }
 
-          const html = await bringToLife({
-            apiKey: key,
-            prompt: augmentedPrompt,
-            fileBase64: imageBase64,
-            mimeType,
-            mode
-          });
+          const html = await bringToLife(effectiveKey, augmentedPrompt, imageBase64, mimeType, mode);
           
           if (html) {
              const defaultName = mode === 'davinci' ? 'Projeto Da Vinci' : (mode === 'fusion' ? 'Artefato Híbrido' : 'Novo App');
@@ -462,7 +458,7 @@ const App: React.FC = () => {
   const isFusion = mode === 'fusion';
 
   return (
-    <div className={`h-[100dvh] bg-zinc-950 bg-dot-grid overflow-y-auto overflow-x-hidden relative flex flex-col animate-fade-in ${isDavinci ? 'text-[var(--ink)]' : isFusion ? 'text-[var(--fusion-text)]' : 'text-zinc-50 selection:bg-blue-500/30'}`}>
+    <div className={`h-[100dvh] bg-zinc-950 bg-dot-grid overflow-y-auto overflow-x-hidden relative flex flex col animate-fade-in ${isDavinci ? 'text-[var(--ink)]' : isFusion ? 'text-[var(--fusion-text)]' : 'text-zinc-50 selection:bg-blue-500/30'}`}>
       
       {/* Centered Content Container */}
       <div 
