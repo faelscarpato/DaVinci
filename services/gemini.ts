@@ -76,23 +76,107 @@ FUNCIONALIDADE:
 FORMATO:
 Retorne APENAS o HTML bruto.`;
 
+type GenerationMode = "app" | "davinci" | "fusion";
+
+type BringToLifeParams =
+  | [apiKey: string, prompt: string, fileBase64?: string, mimeType?: string, mode?: GenerationMode]
+  | [
+      params: {
+        apiKey?: string;
+        prompt: string;
+        fileBase64?: string;
+        mimeType?: string;
+        mode?: GenerationMode;
+      },
+    ];
+
+const isLikelyApiKey = (value: string | undefined) =>
+  !!value && /^AIza[0-9A-Za-z\-_]{30,}$/.test(value.trim());
+
+const normalizeArgs = (...args: BringToLifeParams) => {
+  if (typeof args[0] === "string") {
+    const [apiKey, prompt, fileBase64, mimeType, mode] = args as [
+      string,
+      string,
+      string | undefined,
+      string | undefined,
+      GenerationMode | undefined
+    ];
+
+    if (typeof prompt !== "string" || prompt.trim().length === 0) {
+      throw new Error(
+        "O segundo argumento deve ser o prompt de texto (string não vazia)."
+      );
+    }
+
+    return {
+      apiKey,
+      prompt,
+      fileBase64,
+      mimeType,
+      mode: mode ?? "app",
+    };
+  }
+
+  const [{ apiKey, prompt, fileBase64, mimeType, mode }] = args;
+
+  if (typeof prompt !== "string" || prompt.trim().length === 0) {
+    throw new Error("O prompt deve ser uma string não vazia.");
+  }
+
+  return {
+    apiKey,
+    prompt,
+    fileBase64,
+    mimeType,
+    mode: mode ?? "app",
+  };
+};
+
 /* ======================================================
    FUNÇÃO PRINCIPAL
 ====================================================== */
 
 export async function bringToLife(
-  prompt: string,
-  fileBase64?: string,
-  mimeType?: string,
-  mode: "app" | "davinci" | "fusion" = "app"
+  ...args: BringToLifeParams
 ): Promise<string> {
-  const apiKey = getCapyUniverseApiKey();
+  const {
+    apiKey: providedKey,
+    prompt: rawPrompt,
+    fileBase64,
+    mimeType,
+    mode,
+  } = normalizeArgs(...args);
+
+  const apiKey = (providedKey || getCapyUniverseApiKey()).trim();
 
   if (!apiKey) {
     throw new Error(
       "Chave Gemini não encontrada. Configure em: CapyUniverse > Ajustes > Chave API Gemini."
     );
   }
+
+  if (isLikelyApiKey(rawPrompt)) {
+    throw new Error(
+      "Prompt inválido: parece que a chave API foi usada no lugar do prompt."
+    );
+  }
+
+  if ((fileBase64 && !mimeType) || (!fileBase64 && mimeType)) {
+    throw new Error(
+      "Arquivo inválido: forneça fileBase64 e mimeType juntos ou nenhum dos dois."
+    );
+  }
+
+  if (fileBase64 && typeof fileBase64 !== "string") {
+    throw new Error("fileBase64 deve ser uma string base64.");
+  }
+
+  if (mimeType && typeof mimeType !== "string") {
+    throw new Error("mimeType deve ser uma string MIME válida.");
+  }
+
+  const prompt = rawPrompt.trim();
 
   const ai = new GoogleGenAI({ apiKey });
 
